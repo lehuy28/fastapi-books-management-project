@@ -19,9 +19,9 @@ class Book(Base):
     cover_image = Column(String(255), nullable=True) #save_path: /static/covers/xxx.jpg
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
     #relationship
-    books = relationship("Author", back_populates="books")
-    books = relationship("Category", back_populates="books")
+    author = relationship("Author", back_populates="books")
+    category = relationship("Category", back_populates="books")

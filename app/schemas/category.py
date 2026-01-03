@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 class CategoryBase(BaseModel):
     name : str
@@ -16,8 +16,7 @@ class CategoryUpdate(CategoryBase):
 class CategoryInDBBase(CategoryBase):
     id : int
 
-    class Config:
-        orm_mode = True #Pydantic read from SQLAlchemy
+    model_config = ConfigDict(from_attributes=True)
 
 class Category(CategoryInDBBase):
     """Schema return for client"""

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 class AuthorBase(BaseModel):
     name : str
@@ -11,13 +11,12 @@ class AuthorCreate(AuthorBase):
 class AuthorUpdate(AuthorBase):
     """ Schema for update Author """
     name : str | None = None
-    description : str | None = None
+    bio : str | None = None
 
 class AuthorInDBBase(AuthorBase):
     id : int
 
-    class Config:
-        orm_mode = True #Pydantic read from SQLAlchemy
+    model_config = ConfigDict(from_attributes=True)
 
 class Author(AuthorInDBBase):
     """Schema return for client"""
