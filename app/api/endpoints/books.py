@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 from typing import List
-from sqlalchemy.orm import Session, Query
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app import models
@@ -24,7 +25,6 @@ def list_authors(
     - category_id
     year (published_year)
     - keyword (search in title or description)
-
     """
     mb = models.Book
     query = db.query(mb)
@@ -50,86 +50,116 @@ def list_authors(
     books = query.offset(skip).limit(limit).all()
     return books
 
-@router.get("/{cate_id}", response_model=Category)
-def get_category(
-    category_id : int,
+@router.get("/{book_id}", response_model=Book)
+def get_book(
+    book_id : int,
     db: Session = Depends(get_db)
     ):
-    """Get category detail according id """
-    category = db.query(models.Category).filter(models.Category.id == category_id).first()
-    if not category:
+    """Get book detail according id """
+    book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not book:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Category not found",
+            detail="Book not found",
         )
     
-    return category
+    return book
 
-@router.post("/", response_model=Category, status_code=status.HTTP_201_CREATED)
-def create_category(
-    category_in : CategoryCreate,
+@router.post("/", response_model=Book, status_code=status.HTTP_201_CREATED)
+def create_book(
+    book_in : BookCreate,
     db: Session = Depends(get_db)
     ):
     """Create new category. Check unique name """
-    existing = db.query(models.Category).filter(models.Category.name == category_in.name).first()
+    author = db.query(models.Author).filter(models.Author.id == book_in.author_id).first()
 
-    if existing:
+    if not author:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Category with this name already exists",
+            detail="Author does not exist",
         )
     
-    category = models.Category(name = category_in.name, description=category_in.description)
-    db.add(category)
-    db.commit()
-    db.refresh(category)
-    return category
-
-@router.put("/{cate_id}", response_model=Category, status_code=status.HTTP_201_CREATED)
-def update_category(
-    category_id : int,
-    category_up : CategoryUpdate,
-    db: Session = Depends(get_db)
-    ):
-    """Update category."""
-    category = db.query(models.Category).filter(models.Category.id == category_id).first()
+    category = db.query(models.Category).filter(models.Category.id == book_in.category_id).first()
 
     if not category:
         raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Category does not exist",
+        )
+
+    book = models.Book(
+        title = book_in.title,
+        description=book_in.description,
+        published_year=book_in.published_year,
+        author_id=book_in.author_id,
+        category_id=book_in.category_id,
+        )
+    db.add(book)
+    db.commit()
+    db.refresh(book)
+    return book
+
+@router.put("/{book_id}", response_model=Book, status_code=status.HTTP_201_CREATED)
+def update_book(
+    book_id : int,
+    book_up : BookUpdate,
+    db: Session = Depends(get_db)
+    ):
+    """Update book."""
+    book = db.query(models.Category).filter(models.Book.id == book_id).first()
+
+    if not book:
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Category not found",
+            detail="Book not found",
         )
     
-    if category_up.name is not None and category_up.name != category.name:
-        existing = db.query(models.Category).filter(models.Category.name == category_up.name).first()
-        if existing:
+    if book_up.title is not None:
+        book.title = book_up.title
+    
+    if book_up.description is not None:
+        book.description = book_up.description
+    if book_up.published_year is not None:
+        book.published_year = book_up.published_year
+
+    if book_up.author_id is not None and book_up.author_id != book.author_id:
+        author = db.query(models.Author).filter(models.Author.id == book_up.author_id).first()
+        if not author:
             raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Another category with this name already exists",
-        )
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New author does not exist",
+            )
+        book.author_id = book_up.author_id
 
-    if category_up.description is not None:
-        category.description = category_up.description
-    
-    db.add(category)
+    if book_up.category_id is not None and book_up.category_id != book.category_id:
+        category = db.query(models.Author).filter(models.Author.id == book_up.category_id).first()
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New category does not exist",
+            )
+        book.category_id = book_up.category_id
+
+
+    db.add(book)
     db.commit()
-    db.refresh(category)
-    return category
+    db.refresh(book)
+    return book
 
 
-@router.delete("/{cate_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_category(
-    category_id : int,
+@router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_book(
+    book_id : int,
     db: Session = Depends(get_db)
     ):
-    """Delete category."""
-    category = db.query(models.Category).filter(models.Category.id == category_id).first()
+    """Delete book."""
+    book = db.query(models.Book).filter(models.Book.id == book_id).first()
 
-    if not category:
+    if not book:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Category not found",
+            detail="Book not found",
         )
     
-    db.delete(category)
+    db.delete(book)
     db.commit()
