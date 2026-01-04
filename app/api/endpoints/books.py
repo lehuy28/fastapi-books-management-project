@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Query
+from fastapi import APIRouter, HTTPException, status, Depends, Query, UploadFile, File
 from typing import List
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -6,8 +6,18 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app import models
 from app.schemas.book import Book, BookCreate, BookUpdate
+from pathlib import Path
+import uuid
+
+
 
 router = APIRouter()
+
+#Folder save cover image
+COVERS_DIR = Path("app/static/covers")
+COVERS_DIR.mkdir(parents=True, exist_ok=True)
+
+
 
 @router.get("/", response_model=List[Book])
 def list_authors(
@@ -163,3 +173,68 @@ def delete_book(
     
     db.delete(book)
     db.commit()
+
+
+@router.post("/{book_id}/cover", response_model=Book)
+async def upload_book_cover(
+    book_id : int,
+    file : UploadFile = File(...),
+    db : Session = Depends(get_db)
+    ):
+    """
+    Upload cover image for book
+    - Allow png/jpg file
+    - Save file in path "app/static/covers
+    """
+    book = db.query(models.Book).filter(models.Book.id == book_id).first()
+
+    if not book:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Book not found",
+        )
+    # Validate content type
+    if file.content_type not in ['image/jpeg', 'image/png']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid image type. Only JPEG and PNG are allowed",
+        )
+    
+
+    # Get extension of file
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ['.jpg', '.jpeg', '.png']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid image type. Only .png .jpeg .jpg are allowed",
+        )
+    
+
+    # Read content file
+    contents = await file.read()
+
+    # Option limit size 2MB
+    max_size = 2 * 1024 * 1024
+    if len(contents) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Image size is too large. Max image size is 2MB"
+        )
+    
+
+    # Generate file name
+    filename = f"book_{book_id}_{uuid.uuid4().hex}{ext}"
+    file_path = COVERS_DIR / filename
+
+    # Write to disk
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    # Update URL cover image
+    book.cover_image = f"/static/covers/{filename}"
+
+    db.add(book)
+    db.commit()
+    db.refresh
+
+    return book
